@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -74,10 +73,10 @@
         }
         .tips {
             font-size: 12px;
-            color: #ffb74d;
-            background: #2c1d06;
+            color: #64b5f6;
+            background: #0d2a46;
             padding: 10px;
-            border-left: 4px solid #ff9800;
+            border-left: 4px solid #2196f3;
             margin-bottom: 15px;
             border-radius: 0 4px 4px 0;
         }
@@ -89,7 +88,7 @@
     <h2>Glove80 URL Fetcher & Sync Engine</h2>
 
     <div class="tips">
-        <strong>Fixing the CORS Block:</strong> Because this is a local file, your browser blocks external server connections by default. To make this file work seamlessly, download the free extension <strong>"Allow CORS: Access-Control-Allow-Origin"</strong> from the Chrome Web Store or Firefox Add-ons store, toggle it <strong>ON</strong>, and click Fetch.
+        <strong>Vercel Serverless Mode Active:</strong> API requests are now routed through a secure backend proxy. CORS extensions are no longer required.
     </div>
     
     <div class="row">
@@ -142,7 +141,7 @@
         if (!uuid) return logStatus("❌ Error: Invalid URL structure. Make sure it contains a valid UUID.", "#a31515", "#fff");
         if (!token) return logStatus("❌ Error: Please enter your active authentication token.", "#a31515", "#fff");
 
-        logStatus("Fetching data from the MoErgo database layers...", "#2b5b84", "#fff");
+        logStatus("Fetching data via proxy...", "#2b5b84", "#fff");
 
         const fetchQuery = {
             query: `query GetLayout($uuid: String!) {
@@ -158,13 +157,15 @@
         };
 
         try {
-            const response = await fetch(graphQlUrl, {
+            // Routing request to our local Vercel proxy
+            const response = await fetch('/api/proxy', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': token 
-                },
-                body: JSON.stringify(fetchQuery)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiUrl: graphQlUrl,
+                    token: token,
+                    moergoPayload: fetchQuery
+                })
             });
             const resData = await response.json();
 
@@ -173,7 +174,6 @@
             } else if (resData.data && resData.data.getLayout) {
                 let profile = resData.data.getLayout;
                 
-                // If the interior config parameters are stringified, convert to clear readable objects
                 if (typeof profile.config === 'string') {
                     try { profile.config = JSON.parse(profile.config); } catch(e) {}
                 }
@@ -184,7 +184,7 @@
                 logStatus("⚠️ Layout trace verified, but internal structural payload returned empty.", "#a31515", "#fff");
             }
         } catch (err) {
-            logStatus(`❌ Fetch Error: ${err.message}\n\nReason: Browser CORS security active. Make sure your "Allow CORS" browser extension is enabled and turned on!`, "#a31515", "#fff");
+            logStatus(`❌ Fetch Error: ${err.message}`, "#a31515", "#fff");
         }
     };
 
@@ -195,7 +195,7 @@
         const workspaceContent = jsonWorkspace.value.trim();
 
         if (!uuid || !token || !workspaceContent) {
-            return logStatus("❌ Error: Missing configuration parameters. Ensure URL, Token, and JSON Workspace text are completely filled out.", "#a31515", "#fff");
+            return logStatus("❌ Error: Missing configuration parameters.", "#a31515", "#fff");
         }
 
         let parsed;
@@ -205,7 +205,7 @@
             return logStatus(`❌ JSON Syntax Error: Check punctuation format boundaries (${e.message})`, "#a31515", "#fff");
         }
 
-        logStatus("Packaging payload objects... Pushing modifications to cloud profiles...", "#2b5b84", "#fff");
+        logStatus("Packaging payload objects... Pushing modifications via proxy...", "#2b5b84", "#fff");
 
         const innerConfig = parsed.config !== undefined ? parsed.config : parsed;
         const serializedConfig = typeof innerConfig === 'object' ? JSON.stringify(innerConfig) : innerConfig;
@@ -226,13 +226,15 @@
         };
 
         try {
-            const response = await fetch(graphQlUrl, {
+            // Routing save request to our local Vercel proxy
+            const response = await fetch('/proxy', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': token 
-                },
-                body: JSON.stringify(saveMutation)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiUrl: graphQlUrl,
+                    token: token,
+                    moergoPayload: saveMutation
+                })
             });
             const commitData = await response.json();
 
@@ -242,7 +244,7 @@
                 logStatus(`💾 Success! Modified configuration uploaded and successfully synchronized back to your layout profile.`, "#1b4322", "#85e292");
             }
         } catch (err) {
-            logStatus(`❌ Save Error: ${err.message}\n\nEnsure your "Allow CORS" extension is running.`, "#a31515", "#fff");
+            logStatus(`❌ Save Error: ${err.message}`, "#a31515", "#fff");
         }
     };
 </script>
