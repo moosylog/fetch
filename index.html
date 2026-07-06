@@ -227,7 +227,7 @@
 
         try {
             // Routing save request to our local Vercel proxy
-            const response = await fetch('/proxy', {
+            const response = await fetch('/api/proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
