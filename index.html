@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Glove80 Standalone Editor Engine</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            padding: 20px;
+            max-width: 950px;
+            margin: 0 auto;
+        }
+        .container {
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            border: 1px solid #2d2d2d;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        h2 { color: #4ec9b0; margin-top: 0; font-weight: 500; border-bottom: 1px solid #2d2d2d; padding-bottom: 10px; }
+        .row { margin-bottom: 15px; display: flex; gap: 15px; }
+        .field { flex: 1; display: flex; flex-direction: column; }
+        label { font-size: 12px; font-weight: bold; color: #aaa; margin-bottom: 6px; }
+        input[type="text"] {
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .actions { display: flex; gap: 10px; margin: 10px 0 15px 0; }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-fetch { background-color: #007acc; color: white; }
+        .btn-save { background-color: #4ec9b0; color: #121212; }
+        .status {
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            font-family: monospace;
+            display: none;
+            white-space: pre-wrap;
+        }
+        .editor-box { flex-grow: 1; display: flex; flex-direction: column; }
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            background: #2d2d2d;
+            color: #4ec9b0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .tips {
+            font-size: 12px;
+            color: #ffb74d;
+            background: #2c1d06;
+            padding: 10px;
+            border-left: 4px solid #ff9800;
+            margin-bottom: 15px;
+            border-radius: 0 4px 4px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Glove80 URL Fetcher & Sync Engine</h2>
+
+    <div class="tips">
+        <strong>Fixing the CORS Block:</strong> Because this is a local file, your browser blocks external server connections by default. To make this file work seamlessly, download the free extension <strong>"Allow CORS: Access-Control-Allow-Origin"</strong> from the Chrome Web Store or Firefox Add-ons store, toggle it <strong>ON</strong>, and click Fetch.
+    </div>
+    
+    <div class="row">
+        <div class="field" style="flex: 2;">
+            <label>Enter Layout URL:</label>
+            <input type="text" id="layoutUrl" value="https://my.moergo.com/glove80/#/layout/user/120a5be4-8bbb-4d25-94a1-b51402d2ac68">
+        </div>
+        <div class="field" style="flex: 3;">
+            <label>Enter Cookie / Cognito ID Token:</label>
+            <input type="text" id="authToken" placeholder="Paste your complete active authentication string token here...">
+        </div>
+    </div>
+
+    <div class="actions">
+        <button class="btn-fetch" id="fetchBtn">1. Fetch From URL</button>
+        <button class="btn-save" id="saveBtn">2. Save Changes Back</button>
+    </div>
+
+    <div id="statusAlert" class="status"></div>
+
+    <div class="editor-box">
+        <label>Configuration Workspace Payload JSON:</label>
+        <textarea id="jsonWorkspace" placeholder="Layout configuration profile will automatically render here..."></textarea>
+    </div>
+</div>
+
+<script>
+    const statusAlert = document.getElementById('statusAlert');
+    const jsonWorkspace = document.getElementById('jsonWorkspace');
+    const graphQlUrl = "https://my.moergo.com/api/glove80/graphql";
+
+    function logStatus(text, bg, color) {
+        statusAlert.style.display = 'block';
+        statusAlert.style.background = bg;
+        statusAlert.style.color = color;
+        statusAlert.textContent = text;
+    }
+
+    function parseUUID() {
+        const urlValue = document.getElementById('layoutUrl').value.trim();
+        const uuidMatch = urlValue.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        return uuidMatch ? uuidMatch[0] : null;
+    }
+
+    // --- 1. FETCH LOGIC ---
+    document.getElementById('fetchBtn').onclick = async () => {
+        const uuid = parseUUID();
+        const token = document.getElementById('authToken').value.trim();
+
+        if (!uuid) return logStatus("❌ Error: Invalid URL structure. Make sure it contains a valid UUID.", "#a31515", "#fff");
+        if (!token) return logStatus("❌ Error: Please enter your active authentication token.", "#a31515", "#fff");
+
+        logStatus("Fetching data from the MoErgo database layers...", "#2b5b84", "#fff");
+
+        const fetchQuery = {
+            query: `query GetLayout($uuid: String!) {
+                getLayout(uuid: $uuid) {
+                    uuid
+                    config
+                    title
+                    notes
+                    firmware_api_version
+                }
+            }`,
+            variables: { uuid: uuid }
+        };
+
+        try {
+            const response = await fetch(graphQlUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': token 
+                },
+                body: JSON.stringify(fetchQuery)
+            });
+            const resData = await response.json();
+
+            if (resData.errors) {
+                logStatus(`❌ GraphQL Error: ${resData.errors[0].message}`, "#a31515", "#fff");
+            } else if (resData.data && resData.data.getLayout) {
+                let profile = resData.data.getLayout;
+                
+                // If the interior config parameters are stringified, convert to clear readable objects
+                if (typeof profile.config === 'string') {
+                    try { profile.config = JSON.parse(profile.config); } catch(e) {}
+                }
+                
+                jsonWorkspace.value = JSON.stringify(profile, null, 4);
+                logStatus("🎉 Success: Layout data loaded completely into the workspace window.", "#1b4322", "#85e292");
+            } else {
+                logStatus("⚠️ Layout trace verified, but internal structural payload returned empty.", "#a31515", "#fff");
+            }
+        } catch (err) {
+            logStatus(`❌ Fetch Error: ${err.message}\n\nReason: Browser CORS security active. Make sure your "Allow CORS" browser extension is enabled and turned on!`, "#a31515", "#fff");
+        }
+    };
+
+    // --- 2. SAVE LOGIC ---
+    document.getElementById('saveBtn').onclick = async () => {
+        const uuid = parseUUID();
+        const token = document.getElementById('authToken').value.trim();
+        const workspaceContent = jsonWorkspace.value.trim();
+
+        if (!uuid || !token || !workspaceContent) {
+            return logStatus("❌ Error: Missing configuration parameters. Ensure URL, Token, and JSON Workspace text are completely filled out.", "#a31515", "#fff");
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(workspaceContent);
+        } catch(e) {
+            return logStatus(`❌ JSON Syntax Error: Check punctuation format boundaries (${e.message})`, "#a31515", "#fff");
+        }
+
+        logStatus("Packaging payload objects... Pushing modifications to cloud profiles...", "#2b5b84", "#fff");
+
+        const innerConfig = parsed.config !== undefined ? parsed.config : parsed;
+        const serializedConfig = typeof innerConfig === 'object' ? JSON.stringify(innerConfig) : innerConfig;
+
+        const saveMutation = {
+            query: `mutation UpdateLayout($uuid: String!, $config: String, $title: String, $notes: String) {
+                updateLayout(uuid: $uuid, config: $config, title: $title, notes: $notes) {
+                    uuid
+                    title
+                }
+            }`,
+            variables: {
+                uuid: uuid,
+                config: serializedConfig,
+                title: parsed.title || "Custom Modded Profile",
+                notes: parsed.notes || ""
+            }
+        };
+
+        try {
+            const response = await fetch(graphQlUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': token 
+                },
+                body: JSON.stringify(saveMutation)
+            });
+            const commitData = await response.json();
+
+            if (commitData.errors) {
+                logStatus(`❌ Server Update Failure: ${commitData.errors[0].message}`, "#a31515", "#fff");
+            } else {
+                logStatus(`💾 Success! Modified configuration uploaded and successfully synchronized back to your layout profile.`, "#1b4322", "#85e292");
+            }
+        } catch (err) {
+            logStatus(`❌ Save Error: ${err.message}\n\nEnsure your "Allow CORS" extension is running.`, "#a31515", "#fff");
+        }
+    };
+</script>
+
+</body>
+</html>
